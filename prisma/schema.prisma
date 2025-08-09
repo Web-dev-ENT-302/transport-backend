@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+
+  // Relations
+  studentRides Ride[] @relation("StudentRides")
+  driverRides  Ride[] @relation("DriverRides")
+}
+
+enum Role {
+  STUDENT
+  DRIVER
+  ADMIN
+}
+
+model Ride {
+  id          Int      @id @default(autoincrement())
+  studentId   Int
+  driverId    Int?
+  pickup      String
+  destination String
+  status      String
+  createdAt   DateTime @default(now())
+
+  student User @relation("StudentRides", fields: [studentId], references: [id])
+  driver  User? @relation("DriverRides", fields: [driverId], references: [id])
+}
