@@ -73,11 +73,6 @@ npx nodemon server.js
 
 ---
 
-## API Documentation
-See `docs/postman-guide.md` for a step-by-step Postman guide.
-
----
-
 ## Testing the Flow
 1. Login as Student → Get token  
 2. Request a Ride  
