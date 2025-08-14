@@ -7,7 +7,7 @@ const router = express.Router();
 // Register
 router.post('/register', async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role, plateNumber } = req.body;
 
         if (!name || !email || !password) {
             return res.status(400).json({ error: 'Missing required fields' });
@@ -17,22 +17,41 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ error: 'Invalid role' });
         }
 
+        // If DRIVER, plate number is required and must match format
+        if (role === 'DRIVER') {
+            const plateRegex = /^[A-Z]{3}-\d{3}[A-Z]{2}$/;
+            if (!plateNumber || !plateRegex.test(plateNumber)) {
+                return res.status(400).json({ 
+                    error: 'Plate number is required for drivers and must be in the format ABC-123DE' 
+                });
+            }
+        }
+
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing) {
             return res.status(400).json({ error: 'Email already exists' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await prisma.user.create({
-            data: { name, email, password: hashedPassword, role }
-        });
 
-        res.status(201).json({ message: 'User registered successfully', user });
+        const userData = { name, email, password: hashedPassword, role };
+
+        if (role === 'DRIVER') {
+            userData.plateNumber = plateNumber; // Add plate number only for drivers
+        }
+
+        const user = await prisma.user.create({ data: userData });
+
+        // Remove password before sending
+        const { password: _, ...safeUser } = user;
+
+        res.status(201).json({ message: 'User registered successfully', user: safeUser });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
 
 // Login
 router.post('/login', async (req, res) => {

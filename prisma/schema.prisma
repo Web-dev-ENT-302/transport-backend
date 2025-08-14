@@ -8,12 +8,13 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(STUDENT)
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  password    String
+  role        Role     @default(STUDENT)
+  plateNumber String?  // Optional for STUDENT & ADMIN, required in code for DRIVER
+  createdAt   DateTime @default(now())
 
   // Relations
   studentRides Ride[] @relation("StudentRides")
@@ -38,3 +39,4 @@ model Ride {
   student User @relation("StudentRides", fields: [studentId], references: [id])
   driver  User? @relation("DriverRides", fields: [driverId], references: [id])
 }
+
