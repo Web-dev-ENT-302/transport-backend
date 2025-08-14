@@ -7,26 +7,41 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+// Students table
+model Student {
   id          Int      @id @default(autoincrement())
   name        String
   email       String   @unique
   password    String
-  role        Role     @default(STUDENT)
-  plateNumber String?  // Optional for STUDENT & ADMIN, required in code for DRIVER
   createdAt   DateTime @default(now())
 
-  // Relations
-  studentRides Ride[] @relation("StudentRides")
-  driverRides  Ride[] @relation("DriverRides")
+  // Relation to rides as passenger
+  rides Ride[] @relation("StudentRides")
 }
 
-enum Role {
-  STUDENT
-  DRIVER
-  ADMIN
+// Drivers table
+model Driver {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  password    String
+  plateNumber String   // Required for all drivers
+  createdAt   DateTime @default(now())
+
+  // Relation to rides as driver
+  rides Ride[] @relation("DriverRides")
 }
 
+// Admin table 
+model Admin {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+// Rides table
 model Ride {
   id          Int      @id @default(autoincrement())
   studentId   Int
@@ -36,7 +51,7 @@ model Ride {
   status      String
   createdAt   DateTime @default(now())
 
-  student User @relation("StudentRides", fields: [studentId], references: [id])
-  driver  User? @relation("DriverRides", fields: [driverId], references: [id])
+  // Relations
+  student Student @relation("StudentRides", fields: [studentId], references: [id])
+  driver  Driver? @relation("DriverRides", fields: [driverId], references: [id])
 }
-
