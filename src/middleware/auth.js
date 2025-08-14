@@ -21,7 +21,7 @@ const authenticateUser = (req, res, next) => {
     }
 };
 
-// ✅ Role-specific guard
+// Role-specific guard
 const authorizeRoles = (...roles) => {
     return (req, res, next) => {
         if (!req.user || !roles.includes(req.user.role)) {

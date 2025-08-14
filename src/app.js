@@ -1,4 +1,4 @@
-const { authMiddleware } = require('./middleware/auth');
+const { authenticateUser, authorizeRoles } = require('./middleware/auth');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -9,10 +9,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Routes
+// Public routes
 app.use('/', require('./routes/auth.routes'));
-app.use('/', require('./routes/user.routes'));
-app.use('/', require('./routes/rides.routes'));
-// driver.routes.js, admin.routes.js will come next
+
+// Protected routes
+app.use('/users', authenticateUser, require('./routes/user.routes'));
+app.use('/rides', authenticateUser, require('./routes/rides.routes'));
+app.use('/driver', authenticateUser, authorizeRoles('DRIVER'), require('./routes/driver.routes'));
+app.use('/admin', authenticateUser, authorizeRoles('ADMIN'), require('./routes/admin.routes'));
 
 module.exports = app;
