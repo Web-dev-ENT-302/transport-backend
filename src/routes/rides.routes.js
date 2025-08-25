@@ -13,7 +13,8 @@ router.post(
   authorizeRoles("STUDENT"),
   async (req, res) => {
     try {
-      const { pickup, destination, distanceKm, durationMins, priceNaira } = req.body;
+      const { pickup, destination, distanceKm, durationMins, priceNaira } =
+        req.body;
 
       if (!pickup || !destination) {
         return res
@@ -40,7 +41,6 @@ router.post(
     }
   }
 );
-
 
 /**
  * Driver accepts a ride
@@ -111,52 +111,18 @@ router.post(
         },
       });
 
-      res.status(200).json({ message: "Ride rejected, available for other drivers", ride: updatedRide });
+      res
+        .status(200)
+        .json({
+          message: "Ride rejected, available for other drivers",
+          ride: updatedRide,
+        });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Internal server error" });
     }
   }
 );
-
-
-/**
- * Get ride details
- * GET /rides/:id
- */
-router.get("/:id", authenticateUser, async (req, res) => {
-  try {
-    const ride = await prisma.ride.findUnique({
-      where: { id: parseInt(req.params.id) },
-      include: {
-        student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            createdAt: true,
-          },
-        },
-        driver: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            plateNumber: true,
-            createdAt: true,
-          },
-        },
-      },
-    });
-
-    if (!ride) return res.status(404).json({ error: "Ride not found" });
-
-    res.json(ride);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
 
 /**
  * Update ride status
@@ -197,7 +163,6 @@ router.put("/:id/status", authenticateUser, async (req, res) => {
   }
 });
 
-
 /**
  * Get ride history for a student (paginated, with full details)
  * GET /rides/history?page=1&limit=10
@@ -208,38 +173,58 @@ router.get(
   authorizeRoles("STUDENT"),
   async (req, res) => {
     try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
+      // Ensure studentId is an integer
+      const studentId = parseInt(req.user.id, 10);
+      if (isNaN(studentId)) {
+        return res.status(400).json({ error: "Invalid student ID in token" });
+      }
+
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 10;
       const skip = (page - 1) * limit;
 
-      const totalRides = await prisma.ride.count({
-        where: { studentId: req.user.id },
-      });
+      // Count total rides
+      let totalRides;
+      try {
+        totalRides = await prisma.ride.count({
+          where: { studentId },
+        });
+      } catch (err) {
+        console.error("Error counting rides:", err);
+        return res.status(500).json({ error: "Failed to count rides" });
+      }
 
-      const rides = await prisma.ride.findMany({
-        where: { studentId: req.user.id },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
-        select: {
-          id: true,
-          pickup: true,
-          destination: true,
-          distanceKm: true,
-          durationMins: true,
-          priceNaira: true,
-          status: true,
-          createdAt: true,
-          driver: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              plateNumber: true,
+      // Fetch rides with details
+      let rides;
+      try {
+        rides = await prisma.ride.findMany({
+          where: { studentId },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+          select: {
+            id: true,
+            pickup: true,
+            destination: true,
+            distanceKm: true,
+            durationMins: true,
+            priceNaira: true,
+            status: true,
+            createdAt: true,
+            driver: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                plateNumber: true,
+              },
             },
           },
-        },
-      });
+        });
+      } catch (err) {
+        console.error("Error fetching rides:", err);
+        return res.status(500).json({ error: "Failed to fetch rides" });
+      }
 
       res.json({
         page,
@@ -249,13 +234,11 @@ router.get(
         rides,
       });
     } catch (error) {
-      console.error(error);
+      console.error("Unexpected error in /rides/history:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   }
 );
-
-
 
 /**
  * Get ride history for a driver (paginated, with full details)
@@ -312,6 +295,5 @@ router.get(
     }
   }
 );
-
 
 module.exports = router;
