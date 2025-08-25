@@ -53,6 +53,7 @@ model Ride {
   priceNaira    Decimal  @db.Decimal(10, 2) // always stored as XX.XX (e.g. 600.00, 1000.00)
   status        String
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt @default(now())
 
 
 

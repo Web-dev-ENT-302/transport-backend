@@ -42,6 +42,75 @@ router.post(
   }
 );
 
+
+router.post(
+  "/:id/cancel",
+  authenticateUser,
+  authorizeRoles("STUDENT"),
+  async (req, res) => {
+    try {
+      const rideId = parseInt(req.params.id);
+      const ride = await prisma.ride.findUnique({ where: { id: rideId } });
+
+      if (!ride) return res.status(404).json({ error: "Ride not found" });
+      if (ride.studentId !== req.user.id)
+        return res.status(403).json({ error: "Not authorized" });
+
+      if (ride.status === "COMPLETED") {
+        return res.status(400).json({ error: "Cannot cancel a completed ride" });
+      }
+
+      if (ride.status === "CANCELLED") {
+        return res.status(400).json({ error: "This ride is already cancelled" });
+      }
+
+      // Count this student's cancellations in current week
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      const cancellationsThisWeek = await prisma.ride.count({
+        where: {
+          studentId: req.user.id,
+          status: "CANCELLED",
+          updatedAt: { gte: startOfWeek },
+        },
+      });
+
+      if (cancellationsThisWeek >= 3) {
+        return res.status(400).json({
+          error:
+            "You have reached your cancellation limit for this week. Try again next week.",
+        });
+      }
+
+      // Cancel the ride
+      const cancelledRide = await prisma.ride.update({
+        where: { id: rideId },
+        data: { status: "CANCELLED" },
+      });
+
+      let warning = null;
+      if (cancellationsThisWeek === 2) {
+        warning = "Warning: You have only 1 cancellation left this week.";
+      }
+
+      res.json({
+        message: "Ride cancelled",
+        ride: cancelledRide,
+        warning,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+
+
+
 /**
  * Driver accepts a ride
  * POST /rides/accept
