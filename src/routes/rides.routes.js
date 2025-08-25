@@ -13,7 +13,8 @@ router.post(
   authorizeRoles("STUDENT"),
   async (req, res) => {
     try {
-      const { pickup, destination } = req.body;
+      const { pickup, destination, distanceKm, durationMins, priceNaira } = req.body;
+
       if (!pickup || !destination) {
         return res
           .status(400)
@@ -25,6 +26,9 @@ router.post(
           studentId: req.user.id,
           pickup,
           destination,
+          distanceKm,
+          durationMins,
+          priceNaira,
           status: "PENDING",
         },
       });
@@ -36,6 +40,7 @@ router.post(
     }
   }
 );
+
 
 /**
  * Driver accepts a ride
@@ -191,5 +196,122 @@ router.put("/:id/status", authenticateUser, async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+
+/**
+ * Get ride history for a student (paginated, with full details)
+ * GET /rides/history?page=1&limit=10
+ */
+router.get(
+  "/history",
+  authenticateUser,
+  authorizeRoles("STUDENT"),
+  async (req, res) => {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+
+      const totalRides = await prisma.ride.count({
+        where: { studentId: req.user.id },
+      });
+
+      const rides = await prisma.ride.findMany({
+        where: { studentId: req.user.id },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          pickup: true,
+          destination: true,
+          distanceKm: true,
+          durationMins: true,
+          priceNaira: true,
+          status: true,
+          createdAt: true,
+          driver: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              plateNumber: true,
+            },
+          },
+        },
+      });
+
+      res.json({
+        page,
+        limit,
+        totalPages: Math.ceil(totalRides / limit),
+        totalRides,
+        rides,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+
+
+/**
+ * Get ride history for a driver (paginated, with full details)
+ * GET /rides/driver/history?page=1&limit=10
+ */
+router.get(
+  "/driver/history",
+  authenticateUser,
+  authorizeRoles("DRIVER"),
+  async (req, res) => {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+
+      const totalRides = await prisma.ride.count({
+        where: { driverId: req.user.id },
+      });
+
+      const rides = await prisma.ride.findMany({
+        where: { driverId: req.user.id },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          pickup: true,
+          destination: true,
+          distanceKm: true,
+          durationMins: true,
+          priceNaira: true,
+          status: true,
+          createdAt: true,
+          student: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      res.json({
+        page,
+        limit,
+        totalPages: Math.ceil(totalRides / limit),
+        totalRides,
+        rides,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 
 module.exports = router;

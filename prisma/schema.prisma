@@ -43,13 +43,18 @@ model Admin {
 
 // Rides table
 model Ride {
-  id          Int      @id @default(autoincrement())
-  studentId   Int
-  driverId    Int?
-  pickup      String
-  destination String
-  status      String
-  createdAt   DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  studentId     Int
+  driverId      Int?
+  pickup        String
+  destination   String
+  distanceKm    Float    // allows decimals like 0.55 km
+  durationMins  Float    // allows 2, 2.5, etc. (partial minutes)
+  priceNaira    Decimal  @db.Decimal(10, 2) // always stored as XX.XX (e.g. 600.00, 1000.00)
+  status        String
+  createdAt     DateTime @default(now())
+
+
 
   // Relations
   student Student @relation("StudentRides", fields: [studentId], references: [id])
