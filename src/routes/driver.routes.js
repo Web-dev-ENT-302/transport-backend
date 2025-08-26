@@ -32,6 +32,7 @@ router.get(
               id: true,
               name: true,
               email: true,
+              phone: true,
             },
           },
         },
@@ -63,7 +64,7 @@ router.get(
         },
         include: {
           student: {
-            select: { id: true, name: true, email: true },
+            select: { id: true, name: true, email: true, phone: true },
           },
         },
       });

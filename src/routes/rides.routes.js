@@ -285,6 +285,7 @@ router.get(
                 id: true,
                 name: true,
                 email: true,
+                phone: true,
                 plateNumber: true,
               },
             },
@@ -345,6 +346,7 @@ router.get(
             select: {
               id: true,
               name: true,
+              phone: true,
               email: true,
             },
           },

@@ -7,7 +7,7 @@ const router = express.Router();
 // =================== REGISTER ===================
 router.post('/register', async (req, res) => {
     try {
-        const { name, email, password, role, plateNumber } = req.body;
+        const { name, email, password, role, plateNumber, phone } = req.body;
 
         if (!name || !email || !password) {
             return res.status(400).json({ error: 'Missing required fields' });
@@ -15,6 +15,22 @@ router.post('/register', async (req, res) => {
 
         if (!['STUDENT', 'DRIVER', 'ADMIN'].includes(role)) {
             return res.status(400).json({ error: 'Invalid role' });
+        }
+
+        // Phone validation (only for STUDENT and DRIVER)
+        if (['STUDENT', 'DRIVER'].includes(role)) {
+            const phoneRegex = /^\+234\d{10}$/;
+            if (!phone || !phoneRegex.test(phone)) {
+                return res.status(400).json({ error: 'Phone number must be in format +234XXXXXXXXXX' });
+            }
+
+            // Ensure phone is unique across Student and Driver
+            const existingPhoneStudent = await prisma.student.findUnique({ where: { phone } });
+            const existingPhoneDriver = await prisma.driver.findUnique({ where: { phone } });
+
+            if (existingPhoneStudent || existingPhoneDriver) {
+                return res.status(400).json({ error: 'Phone number already exists' });
+            }
         }
 
         // Check if email exists in any table
@@ -38,12 +54,12 @@ router.post('/register', async (req, res) => {
             }
 
             newUser = await prisma.driver.create({
-                data: { name, email, password: hashedPassword, plateNumber }
+                data: { name, email, password: hashedPassword, plateNumber, phone }
             });
 
         } else if (role === 'STUDENT') {
             newUser = await prisma.student.create({
-                data: { name, email, password: hashedPassword }
+                data: { name, email, password: hashedPassword, phone }
             });
 
         } else if (role === 'ADMIN') {
@@ -60,6 +76,7 @@ router.post('/register', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
 
 // =================== LOGIN ===================
 router.post('/login', async (req, res) => {

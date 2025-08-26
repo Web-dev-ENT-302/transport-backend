@@ -13,6 +13,7 @@ model Student {
   name        String
   email       String   @unique
   password    String
+  phone       String   @unique //now required Nigerian phone number (+234XXXXXXXXXX)
   createdAt   DateTime @default(now())
 
   // Relation to rides as passenger
@@ -26,6 +27,7 @@ model Driver {
   email       String   @unique
   password    String
   plateNumber String   // Required for all drivers
+  phone       String   @unique //now required Nigerian phone number (+234XXXXXXXXXX)
   createdAt   DateTime @default(now())
 
   // Relation to rides as driver
