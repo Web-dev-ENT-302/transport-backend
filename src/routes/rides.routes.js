@@ -13,8 +13,7 @@ router.post(
   authorizeRoles("STUDENT"),
   async (req, res) => {
     try {
-      const { pickup, destination, distanceKm, durationMins, priceNaira } =
-        req.body;
+      const { pickup, destination, distanceKm, durationMins, priceNaira } = req.body;
 
       if (!pickup || !destination) {
         return res
@@ -22,6 +21,22 @@ router.post(
           .json({ error: "Pickup and destination are required" });
       }
 
+      // Check if student has an active ride
+      const activeRide = await prisma.ride.findFirst({
+        where: {
+          studentId: req.user.id,
+          status: { in: ["PENDING", "ACCEPTED", "IN_PROGRESS"] },
+        },
+      });
+
+      if (activeRide) {
+        return res.status(400).json({
+          error:
+            "You already have an active ride. Complete, cancel, or have it rejected before requesting another.",
+        });
+      }
+
+      // Create ride
       const ride = await prisma.ride.create({
         data: {
           studentId: req.user.id,
@@ -41,6 +56,7 @@ router.post(
     }
   }
 );
+
 
 
 router.post(
@@ -133,6 +149,22 @@ router.post(
           .json({ error: "Ride is not available for acceptance" });
       }
 
+      // Check if driver has an active ride
+      const driverActiveRide = await prisma.ride.findFirst({
+        where: {
+          driverId: req.user.id,
+          status: { in: ["ACCEPTED", "IN_PROGRESS"] },
+        },
+      });
+
+      if (driverActiveRide) {
+        return res.status(400).json({
+          error:
+            "You already have an active ride. Complete or cancel it before accepting another.",
+        });
+      }
+
+      // Accept ride
       const updatedRide = await prisma.ride.update({
         where: { id: rideId },
         data: {
@@ -149,8 +181,9 @@ router.post(
   }
 );
 
+
 /**
- * Driver rejects a ride
+ * Driver cancels or rejects a ride
  * POST /rides/reject
  */
 router.post(
@@ -165,33 +198,67 @@ router.post(
       const ride = await prisma.ride.findUnique({ where: { id: rideId } });
       if (!ride) return res.status(404).json({ error: "Ride not found" });
 
-      if (ride.status !== "PENDING") {
-        return res
-          .status(400)
-          .json({ error: "Ride is not available for rejection" });
+      // Only the assigned driver can cancel
+      if (ride.driverId !== req.user.id) {
+        return res.status(403).json({ error: "You are not assigned to this ride" });
       }
 
-      // Free ride back up (no driverId, still pending)
+      // Allow cancellation if PENDING or ACCEPTED
+      if (!["PENDING", "ACCEPTED"].includes(ride.status)) {
+        return res
+          .status(400)
+          .json({ error: "Ride cannot be cancelled at this stage" });
+      }
+
+      // Count this driver's cancellations in current week
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      const cancellationsThisWeek = await prisma.ride.count({
+        where: {
+          driverId: req.user.id,
+          status: "CANCELLED",
+          updatedAt: { gte: startOfWeek },
+        },
+      });
+
+      if (cancellationsThisWeek >= 3) {
+        return res.status(400).json({
+          error: "You have reached your cancellation limit for this week. Try again next week.",
+        });
+      }
+
+      // Cancel or reject the ride
       const updatedRide = await prisma.ride.update({
         where: { id: rideId },
         data: {
           driverId: null,
-          status: "PENDING",
+          status: ride.status === "PENDING" ? "PENDING" : "CANCELLED",
         },
       });
 
-      res
-        .status(200)
-        .json({
-          message: "Ride rejected, available for other drivers",
-          ride: updatedRide,
-        });
+      let warning = null;
+      if (cancellationsThisWeek === 2) {
+        warning = "Warning: You have only 1 cancellation left this week.";
+      }
+
+      res.status(200).json({
+        message:
+          ride.status === "PENDING"
+            ? "Ride rejected, available for other drivers"
+            : "Ride cancelled by driver",
+        ride: updatedRide,
+        warning,
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Internal server error" });
     }
   }
 );
+
 
 /**
  * Update ride status
@@ -220,6 +287,13 @@ router.put("/:id/status", authenticateUser, async (req, res) => {
         .json({ error: "You are not allowed to update this ride" });
     }
 
+    // Restrict cancelling to admins only
+    if (status === "CANCELLED" && req.user.role !== "ADMIN") {
+      return res
+        .status(403)
+        .json({ error: "Only admins can cancel a ride using this route" });
+    }
+
     const updatedRide = await prisma.ride.update({
       where: { id: parseInt(req.params.id) },
       data: { status },
@@ -231,6 +305,7 @@ router.put("/:id/status", authenticateUser, async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 /**
  * Get ride history for a student (paginated, with full details)
