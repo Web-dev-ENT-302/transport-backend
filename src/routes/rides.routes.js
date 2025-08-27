@@ -198,66 +198,69 @@ router.post(
       const ride = await prisma.ride.findUnique({ where: { id: rideId } });
       if (!ride) return res.status(404).json({ error: "Ride not found" });
 
-      // Only the assigned driver can cancel
-      if (ride.driverId !== req.user.id) {
-        return res.status(403).json({ error: "You are not assigned to this ride" });
-      }
-
-      // Allow cancellation if PENDING or ACCEPTED
-      if (!["PENDING", "ACCEPTED"].includes(ride.status)) {
-        return res
-          .status(400)
-          .json({ error: "Ride cannot be cancelled at this stage" });
-      }
-
-      // Count this driver's cancellations in current week
-      const now = new Date();
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
-      startOfWeek.setHours(0, 0, 0, 0);
-
-      const cancellationsThisWeek = await prisma.ride.count({
-        where: {
-          driverId: req.user.id,
-          status: "CANCELLED",
-          updatedAt: { gte: startOfWeek },
-        },
-      });
-
-      if (cancellationsThisWeek >= 3) {
-        return res.status(400).json({
-          error: "You have reached your cancellation limit for this week. Try again next week.",
+      // Case 1: Rejecting a PENDING ride (not assigned yet)
+      if (ride.status === "PENDING") {
+        return res.status(200).json({
+          message: "Ride rejected and removed from your view",
         });
       }
 
-      // Cancel or reject the ride
-      const updatedRide = await prisma.ride.update({
-        where: { id: rideId },
-        data: {
-          driverId: null,
-          status: ride.status === "PENDING" ? "PENDING" : "CANCELLED",
-        },
-      });
+      // Case 2: Cancelling an ACCEPTED ride (must be assigned driver)
+      if (ride.status === "ACCEPTED") {
+        if (ride.driverId !== req.user.id) {
+          return res
+            .status(403)
+            .json({ error: "You are not assigned to this ride" });
+        }
 
-      let warning = null;
-      if (cancellationsThisWeek === 2) {
-        warning = "Warning: You have only 1 cancellation left this week.";
+        // Count this driver's cancellations in current week
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const cancellationsThisWeek = await prisma.ride.count({
+          where: {
+            driverId: req.user.id,
+            status: "CANCELLED",
+            updatedAt: { gte: startOfWeek },
+          },
+        });
+
+        if (cancellationsThisWeek >= 3) {
+          return res.status(400).json({
+            error:
+              "You have reached your cancellation limit for this week. Try again next week.",
+          });
+        }
+
+        const updatedRide = await prisma.ride.update({
+          where: { id: rideId },
+          data: { status: "CANCELLED" },
+        });
+
+        let warning = null;
+        if (cancellationsThisWeek === 2) {
+          warning = "Warning: You have only 1 cancellation left this week.";
+        }
+
+        return res.status(200).json({
+          message: "Ride cancelled by driver",
+          ride: updatedRide,
+          warning,
+        });
       }
 
-      res.status(200).json({
-        message:
-          ride.status === "PENDING"
-            ? "Ride rejected, available for other drivers"
-            : "Ride cancelled by driver",
-        ride: updatedRide,
-        warning,
-      });
+      return res
+        .status(400)
+        .json({ error: "Ride cannot be rejected or cancelled at this stage" });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Internal server error" });
     }
   }
 );
+
 
 
 /**
